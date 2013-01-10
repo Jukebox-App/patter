@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Patter - A chat client for app.net</title>
+    <link rel="stylesheet" style="text/css"
+          href="room.css" title="sms">
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery-1.8.2.min.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.caret.min.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.cookie.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.easydate-0.2.4.min.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.imagefit-0.2.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.imagesloaded.min.js"></script>
+    <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/jquery.titlealert.min.js"></script>
+
+  <link rel="stylesheet" style="text/css"
+        href="http://lib-storage.s3-website-us-east-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" style="text/css"
+        href="http://lib-storage.s3-website-us-east-1.amazonaws.com/bootstrap/css/bootstrap-responsive.min.css">
+  <script src="http://lib-storage.s3-website-us-east-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
+
+
+    <script src="jquery.jfontsize-1.0.js"></script>
+    <script src="lib.js"></script>
+    <script src="room.js"></script>
+    <script>
+        $(document).ready(initialize);
+    </script>
+</head>
+<body>
+  <div class="container-fluid">
+
+
+    <div id="main-logged" class="chatClientWrap">
+      <div class="navbar">
+        <div class="navbar-inner">
+          <a class="brand patter-logo" style="padding: 3px 20px 1px;" href="index.html"><img src="patter-top.png"></a>
+          <ul class="nav">
+            <li><p class="navbar-text" id="room-name">PM</p></li>
+          </ul>
+          <ul class="nav pull-right">
+            <li><a id="jfontsize-minus"><i class="icon-font"></i>-</a></li>
+            <li><a id="jfontsize-default"><i class="icon-font"></i></a></li>
+            <li><a id="jfontsize-plus"><i class="icon-font"></i>+</a></li>
+            <li class="divider-vertical"></li>
+            <li><p class="navbar-text" id="room-status">Public</p></li>
+            <li class="divider-vertical"></li>
+            <li><a href="" id="edit-room-button">View Room</a></li>
+            <li class="divider-vertical"></li>
+            <li><a href="" id="subscribe-button">Subscribe</a></li>
+            <li class="divider-vertical"></li>
+            <li><a href="index.html" id="lobby-button">Lobby</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="row-fluid" id="chat-display-row">
+        <div id="global-tab-container" class="column9 postWindow">
+        </div>
+        <div class="column3 userWindow">
+          <div id="user-list" class="visible-desktop">
+            <h4>User List</h4>
+          </div>
+        </div>
+        <div style="clear: both"></div>
+      </div>
+      <div class="row-fluid chatForm">
+<!--
+        <form id="form-mobile-post" class="form-inline hidden-desktop">
+          <input type="text" id="mobile_main_post" maxlength="256">
+        </form>
+-->
+        <form id="form-post" class="form-inline">
+          <input type="text" id="main_post" class="span9" maxlength="256">
+          <button id="send-button" type="submit" value="Send" class="btn btn-primary">Send</button>
+          <button id="broadcast-button" value="Broadcast" class="btn btn-primary">Broadcast</button>
+          <button id="embed-button" value="Embed" class="btn btn-primary pull-right">Embed</button>
+        </form>
+        <div id="must-authorize">
+          <p>You must <a id="authorize-button" class="btn btn-primary">Authorize</a> Patter to chat.</p>
+        </div>
+        <div id="read-only">
+          <p>This room is read-only. You can watch, but not chat.</p>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="main-fail" class="hero-unit">
+      <h1>Patter Could Not Open Requested Channel</h1>
+      <hr>
+      <p>Please return to <a href="http://patter-app.net">patter-app.net</a> to retry.</p>
+      <p>For troubleshooting, contact @duerig.</p>
+    </div>
+
+
+
+
+    <!-------
+      Loading
+      ------->
+    <div id="loading-modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="loadingModalLabel" aria-hidden="true">
+      <div class="modal-header">
+        <h3>Patter is Loading</h3>
+      </div>
+      <div class="modal-body">
+        <div id="loading-message" class="alert alert-info">
+          Fetching Channel Subscriptions
+        </div>
+      </div>
+      <div class="modal-footer">
+        <p>For troubleshooting, contact @duerig on app.net.</p>
+      </div>
+    </div>
+
+
+
+
+    <!---------
+      Edit Room
+      --------->
+    <div id="edit-room-modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="editRoomModalLabel" aria-hidden="true">
+      <div class="modal-header">
+        <button id="edit-room-x" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3 id="edit-room-type">Edit Room</h3>
+        <h4 id="edit-room-owner">Owned by @user</h4>
+      </div>
+      <div class="modal-body">
+        <p id="edit-room-body">Main body text</p>
+        <form>
+          <fieldset>
+            <input type="text" placeholder="Name" id="edit-room-name">
+          </fieldset>
+          <fieldset>
+            <textarea id="edit-room-text" class="input-xlarge"
+                      rows="3" maxlength="256"
+                      placeholder="Private Message..."></textarea>
+          </fieldset>
+          <fieldset>
+            <select id="edit-room-perm" class="input-medium">
+              <option value="private">Private</option>
+              <option value="public">Public</option>
+              <option value="public-read">Public Read</option>
+            </select>
+            <label id="edit-room-perm-label"></label>
+          </fieldset>
+          <fieldset>
+            <label class="checkbox">
+              <input type="checkbox" id="edit-room-promote">Show this room in the Patter Directory
+              <textarea id="edit-room-promo-text" class="input-xlarge"
+                        rows="3" maxlength="256"
+                        placeholder="Describe Your Room..."></textarea>
+            </label>
+          </fieldset>
+          <div class="row-fluid">
+            <div class="span6">
+              <div id="edit-room-more-div" style="clear: both;"></div>
+            </div>
+            <div class="span1">
+              <button class="btn btn-success" id="edit-room-more-button"><i class="icon-plus"></i></button>
+            </div>
+          </div>
+          <div id="edit-room-error-div"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button id="edit-room-cancel" class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+        <button id="edit-room-save" data-dismiss="modal" data-loading-text="Saving..." class="btn btn-primary">Save</button>
+      </div>
+    </div>
+
+
+
+
+    <!-----------
+      Embed Image
+      ------------->
+    <div id="embedModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="embedModalLabel" aria-hidden="true">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3>Embed Image</h3>
+      </div>
+      <div class="modal-body">
+        <form>
+          <fieldset>
+            <textarea id="embed-post-text" class="span5" rows="3" maxlength="251" placeholder="Caption..."></textarea>
+            <br>
+            <input id="embed-post-url" class="input-xxlarge" placeholder="Image URL">
+            <br>
+          </fieldset>
+        </form>
+        <div class="imagePreview">
+          <p class="imagePreviewText muted"
+             id="embed-post-preview-placeholder"><br><br>Image Preview</p>
+          <p class="imagePreviewText muted"
+             id="embed-post-preview-updating">Updating...</p>
+          <p class="imagePreviewText"
+             id="embed-post-preview-invalid">(Invalid Image)</p>
+          <img width="140" height="140"
+               id="embed-post-preview">
+        </div>
+        <div id="embed-post-error"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+        <button id="embed-send-button" data-dismiss="modal" class="btn btn-primary">Send</button>
+      </div>
+    </div>
+
+
+
+
+
+  </div>
+</body>
+</html>
