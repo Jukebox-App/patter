@@ -164,10 +164,11 @@ function initButtons() {
   $('#jfontsize-plus').on("click", scrollChatToBottom);
 }
 
-var getImageUrl(text) {
+function getImageUrl(text) {
   var result = [];
-  var url = urlRegex.exec(text);
-  if (url != null) {
+  var match = urlRegex.exec(text);
+  if (match != null) {
+    var url = match[0];
     var foundIndex = url.length - 4;
     if (url.indexOf(".jpg") == foundIndex ||
 	url.indexOf(".png") == foundIndex ||
