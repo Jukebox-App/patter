@@ -10,7 +10,6 @@ var userPostTimes = {};
 var avatarUrls = {};
 var lastUserList = "";
 var markerName = null;
-var moreEmbedded = false;
 
 //-----------------------------------------------------------------------------
 // Initialization functions
@@ -120,15 +119,18 @@ function initButtons() {
   $("#form-post").on("submit", function (event) {
     event.preventDefault();
     if ($("#main_post").val().length > 0) {
-      postMessage($("#main_post").val(), []);
+      var text = $("#main_post").val();
+      postMessage(text, getImageUrl(text));
       $("#main_post").val("");
     }
     return false;
   });
   $("#broadcast-button").on("click", function (event) {
     event.preventDefault();
-    if ($("#main_post").val().length > 0) {
-      broadcastMessage($("#main_post").val());
+    if ($("#main_post").val().length > 0) 
+    {
+      var text = $("#main_post").val();
+      broadcastMessage(text, getImageUrl(text));
       $("#main_post").val("");
     }
     return false;
@@ -160,6 +162,20 @@ function initButtons() {
   $('#jfontsize-minus').on("click", scrollChatToBottom);
   $('#jfontsize-default').on("click", scrollChatToBottom);
   $('#jfontsize-plus').on("click", scrollChatToBottom);
+}
+
+var getImageUrl(text) {
+  var result = [];
+  var url = urlRegex.exec(text);
+  if (url != null) {
+    var foundIndex = url.length - 4;
+    if (url.indexOf(".jpg") == foundIndex ||
+	url.indexOf(".png") == foundIndex ||
+	url.indexOf(".gif") == foundIndex) {
+      result.push(embedImageAnnotation(url, 200, 200));
+    }
+  }
+  return result;
 }
 
 function resetWindow()
@@ -396,6 +412,7 @@ function calculateBody(data) {
 	'" target="_blank"><span class="broadcastIcon"></a>';
     }
     result += textToHtml(data.text, data.entities);
+    result = embedEmoji(result);
     var embed = findAnnotation("net.app.core.oembed", data.annotations);
     if (embed != null && embed.type == "photo") {
       var height = embed.height;
@@ -413,9 +430,29 @@ function calculateBody(data) {
       result += '<div class="embedImageWrapper" style="height: ' + height + 'px;"><a target="_blank" href="' + htmlEncode(embed.url) +
 	'"><img class="embedImage" height="' + height + 
 	'" width = "' + width + '" src="' + htmlEncode(embed.url) + '"></a></div>';
-      moreEmbedded = true;
     }
   }
+  return result;
+}
+
+function embedEmoji(text) {
+  var result = "";
+  var start = 0;
+  var matches = text.match(/:[a-z0-9_+\-]+:/g);
+  if (matches != null) {
+    for (var i = 0; i < matches.length; ++i) {
+      var index = text.indexOf(matches[i], start);
+      result += text.substr(start, index - start);
+      var name = matches[i].substr(1, matches[i].length - 2)
+      if (validEmoji[name] == 1) {
+	result += '<img width="24" height="24" class="emoji" src="http://lib-storage.s3-website-us-east-1.amazonaws.com/emoji/' + name + '.png" alt="' + name + '">';
+      } else {
+	result += ":" + name + ":";
+      }
+      start = index + name.length + 2;
+    }
+  }
+  result += text.substr(start);
   return result;
 }
 
@@ -485,23 +522,28 @@ function completePostMessage(response) {
 function failPostMessage(response) {
 }
 
-function broadcastMessage(messageString) {
+function broadcastMessage(messageString, annotations) {
+  var postAnn = annotations.slice();
+  postAnn.push({type: "net.app.core.crosspost",
+		value: { canonical_url: "http://patter-app.net/room.html?channel=" + chatRoom }});
   var post = {
     text: messageString,
-    annotations: [{type: "net.app.core.crosspost",
-		   value: { canonical_url: "http://patter-app.net/room.html?channel=" + chatRoom }}]
+    annotations: postAnn
   };
   var endpoint = "https://alpha-api.app.net/stream/0/posts";
   endpoint += "?include_annotations=1";
-  jsonPost(endpoint, 'POST', post, { message: messageString },
+  jsonPost(endpoint, 'POST', post, { message: messageString,
+				     annotations: annotations },
 	   completeBroadcastMessage, failBroadcastMessage);
 }
 
 function completeBroadcastMessage(response, context) {
   if (response.data != null) {
+    var messageAnn = context.annotations.splice();
     var broadcast = broadcastAnnotation(response.data.id,
 					 response.data.canonical_url);
-    postMessage(context.message, [broadcast]);
+    messageAnn.push(broadcast);
+    postMessage(context.message, messageAnn);
   }
 }
 
@@ -534,37 +576,36 @@ function failToggleSubscribe(response) {
 //-----------------------------------------------------------------------------
 
 function addPostsToFeed(posts, addBefore) {
-    if (posts != null) {
-        var chatArea = document.getElementById("global-tab-container");
-        var oldHeight = chatArea.scrollHeight;
-        var oldClient = chatArea.clientHeight;
-        var oldTop = chatArea.scrollTop;
-        if (addBefore) {
-            $("#global-tab-container").prepend(posts);
-            formatTimestamps();
-            chatArea.scrollTop = oldTop + chatArea.scrollHeight - oldHeight;
-        } else {
-            $(".mention", posts).on("click", insertUserIntoText);
-            $(".author", posts).on("click", insertUserIntoText);
-            $("#global-tab-container").append(posts);
-            formatTimestamps();
-            var oldBottom = Math.max(oldHeight, oldClient) - oldClient;
-            if (oldTop == oldBottom) {
-                chatArea.scrollTop = Math.max(chatArea.scrollHeight,
-                                  chatArea.clientHeight)
-                    - chatArea.clientHeight;
-            }
-            if (oldHeight != chatArea.scrollHeight) {
-                $.titleAlert("New Message", {
-                    duration: 10000,
-                    interval: 1000,
-                    requireBlur: true
-                });
-            }
-        }
+  if (posts != null) {
+    var chatArea = document.getElementById("global-tab-container");
+    var oldHeight = chatArea.scrollHeight;
+    var oldClient = chatArea.clientHeight;
+    var oldTop = chatArea.scrollTop;
+    if (addBefore) {
+      $("#global-tab-container").prepend(posts);
+      formatTimestamps();
+      chatArea.scrollTop = oldTop + chatArea.scrollHeight - oldHeight;
+    } else {
+      $(".mention", posts).on("click", insertUserIntoText);
+      $(".author", posts).on("click", insertUserIntoText);
+      $(".embedImage", posts).imagefit();
+      $(".emoji", posts).imagefit();
+      $("#global-tab-container").append(posts);
+      formatTimestamps();
+      var oldBottom = Math.max(oldHeight, oldClient) - oldClient;
+      if (oldTop == oldBottom) {
+        chatArea.scrollTop = Math.max(chatArea.scrollHeight,
+				      chatArea.clientHeight)
+          - chatArea.clientHeight;
+      }
+      if (oldHeight != chatArea.scrollHeight) {
+        $.titleAlert("New Message", {
+          duration: 10000,
+          interval: 1000,
+          requireBlur: true
+        });
+      }
     }
-  if (moreEmbedded) {
-    $(".embedImage").imagefit();
   }
 }
 
@@ -756,6 +797,11 @@ function changePatterChannel(oldChannel, names) {
   enableEditRoom();
 }
 
-var mentionRegex = /(@[a-zA-Z0-9\-_]+)\b/g;
+// This whole thing pulled from
+// https://github.com/nooodle/noodleapp/blob/master/lib/markdown-to-entities.js
+//
+// Regex pulled from https://github.com/chriso/node-validator and
+// country codes pulled from
+// http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
-var urlRegex = /\b((?:[a-z][\w-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/g;
+var urlRegex = /((?:http|https|ftp|scp|sftp):\/\/)?(?:\w+:\w+@)?(?:localhost|(?:(?:[\-\w\d{1-3}]+\.)+(?:com|org|net|gov|mil|biz|info|mobi|name|aero|jobs|edu|co\.uk|ac\.uk|it|fr|tv|museum|asia|local|travel|AC|AD|AE|AF|AG|AI|AL|AM|AN|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BM|BN|BO|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CR|CU|CV|CW|CX|CY|CZ|DE|DJ|DK|DM|DO|DZ|EC|EE|EG|ER|ES|ET|EU|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|ST|SU|SV|SX|SY|SZ|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TP|TR|TT|TV|TW|TZ|UA|UG|UK|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|YE|YT|ZA|ZM|ZW))|(?:(?:\b25[0-5]\b|\b[2][0-4][0-9]\b|\b[0-1]?[0-9]?[0-9]\b)(?:\.(?:\b25[0-5]\b|\b[2][0-4][0-9]\b|\b[0-1]?[0-9]?[0-9]\b)){3}))(?::[\d]{1,5})?(?:(?:(?:\/(?:[\-\w~!$+|.,="'\(\)_\*:]|%[a-f\d]{2})+)+|\/)+|\?|#)?(?:(?:\?(?:[\-\w~!$+|.,*:]|%[a-f\d{2}])+=?(?:[\-\w~!$+|.,*:=]|%[a-f\d]{2})*)(?:&(?:[\-\w~!$+|.,*:]|%[a-f\d{2}])+=?(?:[\-\w~!$+|.,*:=]|%[a-f\d]{2})*)*)*(?:#(?:[\-\w~!$ |\/.,*:;=]|%[a-f\d]{2})*)?/ig;
