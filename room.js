@@ -140,6 +140,18 @@ function initButtons() {
     authorize();
     return false;
   });
+  if (window.webkitNotifications &&
+      window.webkitNotifications.checkPermission() != 0) {
+    $("#notify-button").show();
+    $("#notify-button").on("click", function(event) {
+      event.preventDefault();
+      window.webkitNotifications.requestPermission();
+      $("#notify-button").hide();
+      return false;
+    });
+  } else {
+    $("#notify-button").hide();
+  }
   $("#edit-room-button").on("click", function (event) {
     event.preventDefault();
     updateEditRoom(currentChannel, null);
@@ -232,7 +244,12 @@ function processFeed()
   }
 
   var endpoint = "https://alpha-api.app.net/stream/0/channels/" + chatRoom
-    + '/messages?include_annotations=1&count=20';
+    + '/messages?include_annotations=1';
+  var count = 200;
+  if (! shownFeed) {
+    count = 40;
+  }
+  endpoint += '&count=' + count;
   if (processIsGoBack && processEarliest != null) {
     endpoint += "&before_id=" + processEarliest;
   }
@@ -280,7 +297,13 @@ function completeFeed(data, context)
 	  || data.meta.max_id > data.meta.marker.id)) {
     changeMarker(data.meta.max_id);
   }
-  processTimer = setTimeout("processFeed()", 2000);
+  var time = 2000;
+/*
+  if (! has_focus) {
+    time = 60000;
+  }
+*/
+  processTimer = setTimeout("processFeed()", time);
 }
 
 function failFeed(response, context) {
@@ -313,15 +336,18 @@ function updateChannelView() {
 
 function updatePatterFeed(data, goBack) {
   var allPosts = jQuery('<div/>');
+  var last = null;
   for (var i = data.length - 1; i > -1; i--) {
     if (document.getElementById("post|" + data[i].id) == null) {
       var newPost = calculatePost(data[i]);
       if (newPost != null) {
         allPosts.append(newPost);
       }
+      last = { username: '@' + data[i].user.username,
+	       text: htmlEncode(data[i].text) };
     }
   }
-  addPostsToFeed(allPosts.contents(), goBack);
+  addPostsToFeed(allPosts.contents(), goBack, last);
   updateUsers();
 }
 
@@ -576,7 +602,7 @@ function failToggleSubscribe(response) {
 // Utility functions
 //-----------------------------------------------------------------------------
 
-function addPostsToFeed(posts, addBefore) {
+function addPostsToFeed(posts, addBefore, last) {
   if (posts != null) {
     var chatArea = document.getElementById("global-tab-container");
     var oldHeight = chatArea.scrollHeight;
@@ -599,12 +625,17 @@ function addPostsToFeed(posts, addBefore) {
 				      chatArea.clientHeight)
           - chatArea.clientHeight;
       }
-      if (oldHeight != chatArea.scrollHeight) {
-        $.titleAlert("New Message", {
+      if (! has_focus && last != null) {
+	$.titleAlert("New Message", {
           duration: 10000,
-          interval: 1000,
-          requireBlur: true
-        });
+          interval: 1000
+	});
+	$.desknoty({
+	  icon: "patter-top-mobile.png",
+	  title: last.username,
+	  body: last.text,
+	  url: "room.html?channel=" + chatRoom
+	});
       }
     }
   }
@@ -797,6 +828,14 @@ function changePatterChannel(oldChannel, names) {
   }
   enableEditRoom();
 }
+
+var has_focus = true;
+$(window).on('focus', function () {
+  has_focus = true;
+});
+$(window).on('blur', function () {
+  has_focus = false;
+});
 
 // This whole thing pulled from
 // https://github.com/nooodle/noodleapp/blob/master/lib/markdown-to-entities.js

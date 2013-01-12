@@ -251,7 +251,7 @@ input.chatbox {
   #edit-room-modal {
     top: 0!important;
   }
-  .pull-right li:nth-child(1), .pull-right li:nth-child(2), .pull-right li:nth-child(3) {
+  .pull-right li:nth-child(2), .pull-right li:nth-child(3), .pull-right li:nth-child(4) {
     display: none;
   }
   .chatForm form {margin: 0;}
